@@ -38,7 +38,7 @@ def metrics():
     return Response("\n".join(output) + "\n", mimetype="text/plain")
 
 
-def parse_int_metadata(data):
+def parse_int_metadata(data: bytes):
     hop_len = 24  # 6 field x 4 byte = 24 bytes per hop
     hops = []
     while len(data) >= hop_len:
@@ -49,9 +49,9 @@ def parse_int_metadata(data):
         egress_ts = struct.unpack(">I", hop_data[8:12])[0]
         hop_latency = struct.unpack(">I", hop_data[12:16])[0]
 
-        # Python2.7: gunakan ord() supaya hasil integer
-        q_id = ord(hop_data[16])
-        q_occ = (ord(hop_data[17]) << 16) | (ord(hop_data[18]) << 8) | ord(hop_data[19])
+        # Python 3: gunakan int.from_bytes()
+        q_id = hop_data[16]
+        q_occ = (hop_data[17] << 16) | (hop_data[18] << 8) | hop_data[19]
 
         egress_tx_util = struct.unpack(">I", hop_data[20:24])[0]
 
@@ -72,7 +72,7 @@ def parse_int_metadata(data):
 def handle_packet(pkt):
     global last_hops_data, LABEL
     if UDP in pkt and pkt[UDP].dport == INT_REPORT_DST_PORT:
-        payload = str(pkt[Raw]) if Raw in pkt else None  # Python2: Raw -> str
+        payload = bytes(pkt[Raw]) if Raw in pkt else None  # Python3: Raw -> bytes
         if payload:
             hops = parse_int_metadata(payload)
             last_hops_data = hops  # update data untuk Prometheus
@@ -88,8 +88,15 @@ def handle_packet(pkt):
 
 
 def save_to_csv(hops, label=0):  # default label = normal
-    with open(CSV_FILE, "ab") as f:  # Python2: binary append
+    file_exists = os.path.exists(CSV_FILE)
+    with open(CSV_FILE, "a", newline="") as f:  # Python3: text mode, newline=""
         writer = csv.writer(f)
+        # tulis header kalau file baru
+        if not file_exists:
+            writer.writerow([
+                "timestamp", "switch_id", "hop_latency",
+                "queue_occupancy", "egress_tx_util", "label"
+            ])
         for hop in hops:
             writer.writerow([
                 datetime.utcnow().isoformat(),
@@ -120,15 +127,6 @@ def main():
     else:
         LABEL = 0 if args.label == "normal" else 1
         print("[*] Collector started with label =", args.label)
-
-        # Buat file CSV jika belum ada
-        if not os.path.exists(CSV_FILE):
-            with open(CSV_FILE, "wb") as f:  # Python2: binary write
-                writer = csv.writer(f)
-                writer.writerow([
-                    "timestamp", "switch_id", "hop_latency",
-                    "queue_occupancy", "egress_tx_util", "label"
-                ])
 
     # Jalankan thread untuk sniffing
     t = threading.Thread(target=sniff_thread)

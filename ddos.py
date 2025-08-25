@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 from scapy.all import Ether, IP, UDP, Raw, sendp
 import time, random, string
 
@@ -9,10 +9,12 @@ dst_port = 5001          # target port (e.g., application at H2)
 iface = "s12-eth1"       # interface to s12
 
 def random_payload(size=200):
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(size))
+    # Return bytes instead of str (Python3 requirement for Raw)
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(size)).encode("utf-8")
 
 print("Starting background flooding to {}:{} from {} via {} ...".format(
     dst_ip, dst_port, src_ip, iface))
+
 try:
     while True:
         sport = random.randint(1024, 65535)      # random source port

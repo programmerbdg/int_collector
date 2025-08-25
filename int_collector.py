@@ -1,3 +1,42 @@
+# int_collector.py (Python 2.7)
+# -*- coding: utf-8 -*-
+
+from scapy.all import sniff, IP, UDP, Raw
+import struct
+from flask import Flask, Response
+import threading, argparse, csv, os, time
+
+INT_REPORT_DST_PORT = 5001
+CSV_FILE = "int_dataset.csv"
+
+last_hops_data = []
+LABEL = None
+
+app = Flask(__name__)
+
+
+def parse_int_metadata(payload):
+    # Dummy parser untuk contoh
+    hops = []
+    # TODO: isi parser INT sesuai format payload
+    return hops
+
+
+def save_to_csv(hops, label):
+    with open(CSV_FILE, "ab") as f:   # <-- pakai "ab" (append binary) untuk Python 2.7
+        writer = csv.writer(f)
+        ts = int(time.time())
+        for hop in hops:
+            writer.writerow([
+                ts,
+                hop.get("switch_id", ""),
+                hop.get("hop_latency", ""),
+                hop.get("queue_occupancy", ""),
+                hop.get("egress_tx_util", ""),
+                label
+            ])
+
+
 def handle_packet(pkt):
     global last_hops_data, LABEL
     if UDP in pkt and pkt[UDP].dport == INT_REPORT_DST_PORT:
@@ -14,6 +53,18 @@ def handle_packet(pkt):
             # Only save if LABEL is not None
             if LABEL is not None:
                 save_to_csv(hops, label=LABEL)
+
+
+def sniff_thread():
+    print("[*] Sniffing INT reports on UDP port {}".format(INT_REPORT_DST_PORT))
+    sniff(filter="udp port {}".format(INT_REPORT_DST_PORT),
+          prn=handle_packet, store=0)
+
+
+@app.route("/metrics")
+def metrics():
+    return Response("int_packets_total {}\n".format(len(last_hops_data)),
+                    mimetype="text/plain")
 
 
 def main():
@@ -46,5 +97,9 @@ def main():
     t.start()
 
     # Start Prometheus Flask app
+    print("[*] Starting Flask on port 8000...")
     app.run(host="0.0.0.0", port=8000)
 
+
+if __name__ == "__main__":
+    main()

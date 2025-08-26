@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from keras.models import Sequential
@@ -31,6 +32,10 @@ try:
     # Normalization
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
+
+    # === Simpan scaler ===
+    joblib.dump(scaler, "scaler.pkl")
+    print("✅ Scaler saved as scaler.pkl")
 
     # Reshape for CNN input (format: channels_last → (samples, rows, cols, channels))
     X = X.reshape((X.shape[0], 3, 1, 1))
@@ -68,4 +73,3 @@ except KeyboardInterrupt:
 except Exception as e:
     print("❌ Error during training: {}".format(str(e)))
     sys.exit(1)
-
